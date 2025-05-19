@@ -14,9 +14,14 @@ const jsPrimitives = {
 const jsGlobalObjectsUrl = `${jsDocPrefix}Reference/Global_Objects/`;
 const jsGlobalTypes = [
   'AggregateError', 'Array', 'ArrayBuffer', 'DataView', 'Date', 'Error',
-  'EvalError', 'Function', 'Map', 'Object', 'Promise', 'Proxy', 'RangeError',
-  'ReferenceError', 'RegExp', 'Set', 'SharedArrayBuffer', 'SyntaxError',
-  'TypeError', 'TypedArray', 'URIError', 'Uint8Array',
+  'EvalError', 'Function', 'Map', 'NaN', 'Object', 'Promise', 'Proxy', 'RangeError',
+  'ReferenceError', 'RegExp', 'Set', 'SharedArrayBuffer', 'SyntaxError', 'Symbol',
+  'TypeError', 'URIError', 'WeakMap', 'WeakSet',
+
+  'TypedArray',
+  'Float16Array', 'Float32Array', 'Float64Array',
+  'Int8Array', 'Int16Array', 'Int32Array',
+  'Uint8Array', 'Uint8ClampedArray', 'Uint16Array', 'Uint32Array',
 ];
 
 const customTypesMap = {
@@ -70,8 +75,8 @@ const customTypesMap = {
 
   'cluster.Worker': 'cluster.html#class-worker',
 
-  'Cipher': 'crypto.html#class-cipher',
-  'Decipher': 'crypto.html#class-decipher',
+  'Cipheriv': 'crypto.html#class-cipheriv',
+  'Decipheriv': 'crypto.html#class-decipheriv',
   'DiffieHellman': 'crypto.html#class-diffiehellman',
   'DiffieHellmanGroup': 'crypto.html#class-diffiehellmangroup',
   'ECDH': 'crypto.html#class-ecdh',
@@ -82,22 +87,29 @@ const customTypesMap = {
   'Verify': 'crypto.html#class-verify',
   'crypto.constants': 'crypto.html#cryptoconstants',
 
+  'Algorithm': 'webcrypto.html#class-algorithm',
   'CryptoKey': 'webcrypto.html#class-cryptokey',
   'CryptoKeyPair': 'webcrypto.html#class-cryptokeypair',
   'Crypto': 'webcrypto.html#class-crypto',
   'SubtleCrypto': 'webcrypto.html#class-subtlecrypto',
   'RsaOaepParams': 'webcrypto.html#class-rsaoaepparams',
-  'AlgorithmIdentifier': 'webcrypto.html#class-algorithmidentifier',
   'AesCtrParams': 'webcrypto.html#class-aesctrparams',
   'AesCbcParams': 'webcrypto.html#class-aescbcparams',
+  'AesDerivedKeyParams': 'webcrypto.html#class-aesderivedkeyparams',
   'AesGcmParams': 'webcrypto.html#class-aesgcmparams',
   'EcdhKeyDeriveParams': 'webcrypto.html#class-ecdhkeyderiveparams',
   'HkdfParams': 'webcrypto.html#class-hkdfparams',
+  'KeyAlgorithm': 'webcrypto.html#class-keyalgorithm',
   'Pbkdf2Params': 'webcrypto.html#class-pbkdf2params',
+  'HmacKeyAlgorithm': 'webcrypto.html#class-hmackeyalgorithm',
   'HmacKeyGenParams': 'webcrypto.html#class-hmackeygenparams',
+  'AesKeyAlgorithm': 'webcrypto.html#class-aeskeyalgorithm',
   'AesKeyGenParams': 'webcrypto.html#class-aeskeygenparams',
+  'RsaHashedKeyAlgorithm':
+    'webcrypto.html#class-rsahashedkeyalgorithm',
   'RsaHashedKeyGenParams':
     'webcrypto.html#class-rsahashedkeygenparams',
+  'EcKeyAlgorithm': 'webcrypto.html#class-eckeyalgorithm',
   'EcKeyGenParams': 'webcrypto.html#class-eckeygenparams',
   'RsaHashedImportParams':
     'webcrypto.html#class-rsahashedimportparams',
@@ -112,6 +124,7 @@ const customTypesMap = {
   'Channel': 'diagnostics_channel.html#class-channel',
   'TracingChannel': 'diagnostics_channel.html#class-tracingchannel',
 
+  'DatabaseSync': 'sqlite.html#class-databasesync',
   'Domain': 'domain.html#class-domain',
 
   'errors.Error': 'errors.html#class-error',
@@ -199,6 +212,9 @@ const customTypesMap = {
 
   'repl.REPLServer': 'repl.html#class-replserver',
 
+  'Session': 'sqlite.html#class-session',
+  'StatementSync': 'sqlite.html#class-statementsync',
+
   'Stream': 'stream.html#stream',
   'stream.Duplex': 'stream.html#class-streamduplex',
   'Duplex': 'stream.html#class-streamduplex',
@@ -221,6 +237,9 @@ const customTypesMap = {
 
   'Tracing': 'tracing.html#tracing-object',
 
+  'tty.ReadStream': 'tty.html#class-ttyreadstream',
+  'tty.WriteStream': 'tty.html#class-ttywritestream',
+
   'URL': 'url.html#the-whatwg-url-api',
   'URLSearchParams': 'url.html#class-urlsearchparams',
 
@@ -231,6 +250,8 @@ const customTypesMap = {
   'vm.SourceTextModule': 'vm.html#class-vmsourcetextmodule',
   'vm.constants.USE_MAIN_CONTEXT_DEFAULT_LOADER':
       'vm.html#vmconstantsuse_main_context_default_loader',
+  'vm.constants.DONT_CONTEXTIFY':
+      'vm.html#vmconstantsdont_contextify',
 
   'MessagePort': 'worker_threads.html#class-messageport',
   'Worker': 'worker_threads.html#class-worker',
@@ -238,6 +259,7 @@ const customTypesMap = {
   'X509Certificate': 'crypto.html#class-x509certificate',
 
   'zlib options': 'zlib.html#class-options',
+  'zstd options': 'zlib.html#class-zstdoptions',
 
   'ReadableStream':
     'webstreams.html#class-readablestream',
@@ -275,6 +297,31 @@ const customTypesMap = {
   'Response': 'https://developer.mozilla.org/en-US/docs/Web/API/Response',
   'Request': 'https://developer.mozilla.org/en-US/docs/Web/API/Request',
   'Disposable': 'https://tc39.es/proposal-explicit-resource-management/#sec-disposable-interface',
+
+  'quic.QuicEndpoint': 'quic.html#class-quicendpoint',
+  'quic.QuicEndpoint.Stats': 'quic.html#class-quicendpointstats',
+  'quic.QuicSession': 'quic.html#class-quicsession',
+  'quic.QuicSession.Stats': 'quic.html#class-quicsessionstats',
+  'quic.QuicStream': 'quic.html#class-quicstream',
+  'quic.QuicStream.Stats': 'quic.html#class-quicstreamstats',
+  'quic.EndpointOptions': 'quic.html#type-endpointoptions',
+  'quic.SessionOptions': 'quic.html#type-sessionoptions',
+  'quic.ApplicationOptions': 'quic.html#type-applicationoptions',
+  'quic.TlsOptions': 'quic.html#type-tlsoptions',
+  'quic.TransportParams': 'quic.html#type-transportparams',
+  'quic.OnSessionCallback': 'quic.html#callback-onsessioncallback',
+  'quic.OnStreamCallback': 'quic.html#callback-onstreamcallback',
+  'quic.OnDatagramCallback': 'quic.html#callback-ondatagramcallback',
+  'quic.OnDatagramStatusCallback': 'quic.html#callback-ondatagramstatuscallback',
+  'quic.OnPathValidationCallback': 'quic.html#callback-onpathvalidationcallback',
+  'quic.OnSessionTicketCallback': 'quic.html#callback-onsessionticketcallback',
+  'quic.OnVersionNegotiationCallback': 'quic.html#callback-onversionnegotiationcallback',
+  'quic.OnHandshakeCallback': 'quic.html#callback-onhandshakecallback',
+  'quic.OnBlockedCallback': 'quic.html#callback-onblockedcallback',
+  'quic.OnStreamErrorCallback': 'quic.html#callback-onstreamerrorcallback',
+  'quic.OnHeadersCallback': 'quic.html#callback-onheaderscallback',
+  'quic.OnTrailersCallback': 'quic.html#callback-ontrailerscallback',
+  'quic.OnPullCallback': 'quic.html#callback-onpullcallback',
 };
 
 const arrayPart = /(?:\[])+$/;

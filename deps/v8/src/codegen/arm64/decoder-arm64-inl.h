@@ -6,6 +6,7 @@
 #define V8_CODEGEN_ARM64_DECODER_ARM64_INL_H_
 
 #include "src/codegen/arm64/decoder-arm64.h"
+// Include the non-inl header before the rest of the headers.
 
 namespace v8 {
 namespace internal {
@@ -140,8 +141,7 @@ void Decoder<V>::DecodeBranchSystemException(Instruction* instr) {
     }
     case 2: {
       if (instr->Bit(25) == 0) {
-        if ((instr->Bit(24) == 0x1) ||
-            (instr->Mask(0x01000010) == 0x00000010)) {
+        if ((instr->Bit(24) == 0x1)) {
           V::VisitUnallocated(instr);
         } else {
           V::VisitConditionalBranch(instr);
@@ -463,10 +463,8 @@ void Decoder<V>::DecodeDataProcessing(Instruction* instr) {
                 V::VisitDataProcessing2Source(instr);
               }
             } else {
-              if ((instr->Bit(13) == 1) || (instr->Bits(20, 16) != 0) ||
-                  (instr->Bits(15, 14) != 0) ||
-                  (instr->Mask(0xA01FFC00) == 0x00000C00) ||
-                  (instr->Mask(0x201FF800) == 0x00001800)) {
+              if ((instr->Bits(20, 16) != 0) || (instr->Bits(15, 10) > 8) ||
+                  (instr->Mask(0xFFFFFC00) == 0x5AC00C00)) {
                 V::VisitUnallocated(instr);
               } else {
                 V::VisitDataProcessing1Source(instr);
@@ -694,11 +692,19 @@ void Decoder<V>::DecodeNEONVectorDataProcessing(Instruction* instr) {
             if (instr->Bits(23, 22) == 0) {
               V::VisitNEONCopy(instr);
             } else {
-              V::VisitUnallocated(instr);
+              if (instr->Bit(14) == 0 && instr->Bit(22)) {
+                V::VisitNEON3SameHP(instr);
+              } else {
+                V::VisitUnallocated(instr);
+              }
             }
           }
         } else {
-          V::VisitUnallocated(instr);
+          if (instr->Bit(10) == 1) {
+            V::VisitNEON3Extension(instr);
+          } else {
+            V::VisitUnallocated(instr);
+          }
         }
       } else {
         if (instr->Bit(10) == 0) {
@@ -720,7 +726,8 @@ void Decoder<V>::DecodeNEONVectorDataProcessing(Instruction* instr) {
                 if (instr->Bit(19) == 0) {
                   V::VisitNEONAcrossLanes(instr);
                 } else {
-                  V::VisitUnallocated(instr);
+                  // Half-precision version.
+                  V::VisitNEON2RegMisc(instr);
                 }
               }
             } else {
@@ -747,7 +754,11 @@ void Decoder<V>::DecodeNEONVectorDataProcessing(Instruction* instr) {
       }
     }
   } else {
-    V::VisitUnallocated(instr);
+    if (instr->Bit(30) == 1) {
+      V::VisitNEONSHA3(instr);
+    } else {
+      V::VisitUnallocated(instr);
+    }
   }
 }
 

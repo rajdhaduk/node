@@ -83,7 +83,7 @@ except ImportError:
 
 
 logger = logging.getLogger('testrunner')
-skip_regex = re.compile(r'# SKIP\S*\s+(.*)', re.IGNORECASE)
+skip_regex = re.compile(r'(?:\d+\.\.\d+|ok|not ok).*# SKIP\S*\s+(.*)', re.IGNORECASE)
 
 VERBOSE = False
 
@@ -316,9 +316,7 @@ class DotsProgressIndicator(SimpleProgressIndicator):
 
 class ActionsAnnotationProgressIndicator(DotsProgressIndicator):
   def AboutToRun(self, case):
-    case.additional_flags = case.additional_flags.copy() if hasattr(case, 'additional_flags') else []
-    case.additional_flags.append('--test-reporter=./tools/github_reporter/index.js')
-    case.additional_flags.append('--test-reporter-destination=stdout')
+    pass
 
   def GetAnnotationInfo(self, test, output):
     traceback = output.stdout + output.stderr
@@ -604,12 +602,21 @@ class TestCase(object):
 
   def Run(self):
     try:
-      result = self.RunCommand(self.GetCommand(), {
+      run_configuration = self.GetRunConfiguration()
+      command = run_configuration['command']
+      envs = {}
+      if 'envs' in run_configuration:
+        envs.update(run_configuration['envs'])
+      envs.update({
         "TEST_SERIAL_ID": "%d" % self.serial_id,
         "TEST_THREAD_ID": "%d" % self.thread_id,
         "TEST_PARALLEL" : "%d" % self.parallel,
         "GITHUB_STEP_SUMMARY": "",
       })
+      result = self.RunCommand(
+        command,
+        envs
+      )
     finally:
       # Tests can leave the tty in non-blocking mode. If the test runner
       # tries to print to stdout/stderr after that and the tty buffer is
@@ -1448,6 +1455,9 @@ def BuildOptions():
   result.add_option("--type",
       help="Type of build (simple, fips, coverage)",
       default=None)
+  result.add_option("--error-reporter",
+      help="use error reporter",
+      default=True, action="store_true")
   return result
 
 
@@ -1584,6 +1594,8 @@ IGNORED_SUITES = [
   'js-native-api',
   'node-api',
   'pummel',
+  'sqlite',
+  'system-ca',
   'tick-processor',
   'v8-updates'
 ]
@@ -1616,6 +1628,9 @@ def get_asan_state(vm, context):
   asan = Execute([vm, '-p', 'process.config.variables.asan'], context).stdout.strip()
   return "on" if asan == "1" else "off"
 
+def get_pointer_compression_state(vm, context):
+  pointer_compression = Execute([vm, '-p', 'process.config.variables.v8_enable_pointer_compression'], context).stdout.strip()
+  return "on" if pointer_compression == "1" else "off"
 
 def Main():
   parser = BuildOptions()
@@ -1661,6 +1676,10 @@ def Main():
     # the optimizer to kick in, so this flag will force it to run.
     options.node_args.append("--always-turbofan")
     options.progress = "deopts"
+
+  if options.error_reporter:
+    options.node_args.append('--test-reporter=./test/common/test-error-reporter.js')
+    options.node_args.append('--test-reporter-destination=stdout')
 
   if options.worker:
     run_worker = join(workspace, "tools", "run-worker.js")
@@ -1710,6 +1729,7 @@ def Main():
           'arch': vmArch,
           'type': get_env_type(vm, options.type, context),
           'asan': get_asan_state(vm, context),
+          'pointer_compression': get_pointer_compression_state(vm, context),
         }
         test_list = root.ListTests([], path, context, arch, mode)
         unclassified_tests += test_list

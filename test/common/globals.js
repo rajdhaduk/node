@@ -33,6 +33,7 @@ const intrinsics = new Set([
   'Int8Array',
   'Uint16Array',
   'Int16Array',
+  'Float16Array',
   'Uint32Array',
   'Int32Array',
   'Float32Array',
@@ -64,6 +65,9 @@ const intrinsics = new Set([
   'Atomics',
   'WebAssembly',
   'Iterator',
+  'SuppressedError',
+  'DisposableStack',
+  'AsyncDisposableStack',
 ]);
 
 if (global.gc) {
@@ -127,6 +131,7 @@ const webIdlExposedWindow = new Set([
   'Response',
   'WebSocket',
   'EventSource',
+  'CloseEvent',
 ]);
 
 const nodeGlobals = new Set([

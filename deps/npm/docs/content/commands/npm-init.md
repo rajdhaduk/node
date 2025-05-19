@@ -7,7 +7,7 @@ description: Create a package.json file
 ### Synopsis
 
 ```bash
-npm init <package-spec> (same as `npx <package-spec>`)
+npm init <package-spec> (same as `npx create-<package-spec>`)
 npm init <@scope> (same as `npx <@scope>/create`)
 
 aliases: create, innit
@@ -193,6 +193,16 @@ A module that will be loaded by the `npm init` command. See the
 documentation for the
 [init-package-json](https://github.com/npm/init-package-json) module for
 more information, or [npm init](/commands/npm-init).
+
+
+
+#### `init-type`
+
+* Default: "commonjs"
+* Type: String
+
+The value that `npm init` should use by default for the package.json type
+field.
 
 
 

@@ -1,11 +1,9 @@
 /* eslint-disable @stylistic/js/max-len */
 
 import {
+  globals,
   noRestrictedSyntaxCommonAll,
-  requireEslintTool,
-} from '../tools/eslint.config_utils.mjs';
-
-const globals = requireEslintTool('globals');
+} from '../tools/eslint/eslint.config_utils.mjs';
 
 export default [
   {
@@ -13,6 +11,7 @@ export default [
     languageOptions: {
       globals: {
         ...globals.node,
+        CloseEvent: true,
       },
     },
     rules: {
@@ -140,7 +139,7 @@ export default [
   },
   {
     files: [
-      'test/{common,wpt}/**/*.{js,mjs,cjs}',
+      'test/{common,fixtures,wpt}/**/*.{js,mjs,cjs}',
       'test/eslint.config_partial.mjs',
     ],
     rules: {

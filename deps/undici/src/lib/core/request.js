@@ -14,9 +14,10 @@ const {
   isFormDataLike,
   isIterable,
   isBlobLike,
-  buildURL,
-  validateHandler,
-  getServerName
+  serializePathWithQuery,
+  assertRequestHandler,
+  getServerName,
+  normalizedMethodRecords
 } = require('./util')
 const { channels } = require('./diagnostics.js')
 const { headerNameLowerCasedRecord } = require('./constants')
@@ -39,9 +40,9 @@ class Request {
     headersTimeout,
     bodyTimeout,
     reset,
-    throwOnError,
     expectContinue,
-    servername
+    servername,
+    throwOnError
   }, handler) {
     if (typeof path !== 'string') {
       throw new InvalidArgumentError('path must be a string')
@@ -51,13 +52,13 @@ class Request {
       method !== 'CONNECT'
     ) {
       throw new InvalidArgumentError('path must be an absolute URL or start with a slash')
-    } else if (invalidPathRegex.exec(path) !== null) {
+    } else if (invalidPathRegex.test(path)) {
       throw new InvalidArgumentError('invalid request path')
     }
 
     if (typeof method !== 'string') {
       throw new InvalidArgumentError('method must be a string')
-    } else if (!isValidHTTPToken(method)) {
+    } else if (normalizedMethodRecords[method] === undefined && !isValidHTTPToken(method)) {
       throw new InvalidArgumentError('invalid request method')
     }
 
@@ -81,11 +82,13 @@ class Request {
       throw new InvalidArgumentError('invalid expectContinue')
     }
 
+    if (throwOnError != null) {
+      throw new InvalidArgumentError('invalid throwOnError')
+    }
+
     this.headersTimeout = headersTimeout
 
     this.bodyTimeout = bodyTimeout
-
-    this.throwOnError = throwOnError === true
 
     this.method = method
 
@@ -127,12 +130,11 @@ class Request {
     }
 
     this.completed = false
-
     this.aborted = false
 
     this.upgrade = upgrade || null
 
-    this.path = query ? buildURL(path, query) : path
+    this.path = query ? serializePathWithQuery(path, query) : path
 
     this.origin = origin
 
@@ -140,7 +142,7 @@ class Request {
       ? method === 'HEAD' || method === 'GET'
       : idempotent
 
-    this.blocking = blocking == null ? false : blocking
+    this.blocking = blocking ?? this.method !== 'HEAD'
 
     this.reset = reset == null ? null : reset
 
@@ -180,9 +182,9 @@ class Request {
       throw new InvalidArgumentError('headers must be an object or an array')
     }
 
-    validateHandler(handler, method, upgrade)
+    assertRequestHandler(handler, method, upgrade)
 
-    this.servername = servername || getServerName(this.host)
+    this.servername = servername || getServerName(this.host) || null
 
     this[kHandler] = handler
 
@@ -269,6 +271,7 @@ class Request {
     this.onFinally()
 
     assert(!this.aborted)
+    assert(!this.completed)
 
     this.completed = true
     if (channels.trailers.hasSubscribers) {

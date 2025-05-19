@@ -27,7 +27,11 @@
 
   'conditions': [
     [ 'clang==1', {
-      'cflags': [ '-Werror=undefined-inline', '-Werror=extra-semi']
+      'cflags': [
+        '-Werror=undefined-inline',
+        '-Werror=extra-semi',
+        '-Werror=ctad-maybe-unsupported',
+      ],
     }],
     [ '"<(_type)"=="executable"', {
       'msvs_settings': {
@@ -66,15 +70,15 @@
         '_UNICODE=1',
       ],
       'conditions': [
-        ['clang==0', {
-          'msvs_precompiled_header': 'tools/msvs/pch/node_pch.h',
-          'msvs_precompiled_source': 'tools/msvs/pch/node_pch.cc',
-          'sources': [
-            '<(_msvs_precompiled_header)',
-            '<(_msvs_precompiled_source)',
-          ],
-        }],
-      ],
+          ['clang != 1 or use_ccache_win != 1', {
+            'msvs_precompiled_header': 'tools/msvs/pch/node_pch.h',
+            'msvs_precompiled_source': 'tools/msvs/pch/node_pch.cc',
+            'sources': [
+              '<(_msvs_precompiled_header)',
+              '<(_msvs_precompiled_source)',
+            ],
+          }]
+      ]
     }, { # POSIX
       'defines': [ '__POSIX__' ],
     }],
@@ -95,9 +99,6 @@
       'defines': [
         'NODE_USE_V8_PLATFORM=0',
       ],
-    }],
-    [ 'v8_enable_shared_ro_heap==1', {
-      'defines': ['NODE_V8_SHARED_RO_HEAP',],
     }],
     [ 'node_tag!=""', {
       'defines': [ 'NODE_TAG="<(node_tag)"' ],
@@ -216,14 +217,35 @@
       'dependencies': [ 'deps/nghttp2/nghttp2.gyp:nghttp2' ],
     }],
 
+    [ 'node_shared_ada=="false"', {
+        'dependencies': [ 'deps/ada/ada.gyp:ada' ],
+    }],
+
+    [ 'node_shared_simdjson=="false"', {
+        'dependencies': [ 'deps/simdjson/simdjson.gyp:simdjson' ],
+    }],
+
+    [ 'node_shared_simdutf=="false"', {
+        'dependencies': [ 'tools/v8_gypfiles/v8.gyp:simdutf' ],
+    }],
+
     [ 'node_shared_brotli=="false"', {
       'dependencies': [ 'deps/brotli/brotli.gyp:brotli' ],
     }],
 
+    [ 'node_use_sqlite=="true" and node_shared_sqlite=="false"', {
+      'dependencies': [ 'deps/sqlite/sqlite.gyp:sqlite' ],
+    }],
+
+    [ 'node_shared_zstd=="false"', {
+      'dependencies': [ 'deps/zstd/zstd.gyp:zstd' ],
+    }],
+
     [ 'OS=="mac"', {
-      # linking Corefoundation is needed since certain OSX debugging tools
-      # like Instruments require it for some features
-      'libraries': [ '-framework CoreFoundation' ],
+      # linking Corefoundation is needed since certain macOS debugging tools
+      # like Instruments require it for some features. Security is needed for
+      # --use-system-ca.
+      'libraries': [ '-framework CoreFoundation -framework Security' ],
       'defines!': [
         'NODE_PLATFORM="mac"',
       ],
@@ -407,6 +429,11 @@
       ]
     }, {
       'defines': [ 'HAVE_OPENSSL=0' ]
+    }],
+    [ 'node_use_amaro=="true"', {
+      'defines': [ 'HAVE_AMARO=1' ],
+    }, {
+      'defines': [ 'HAVE_AMARO=0' ]
     }],
   ],
 }

@@ -67,7 +67,8 @@
 #endif
 
 #ifdef _WIN32
-# define SIGKILL 9
+#define SIGQUIT 3
+#define SIGKILL 9
 #endif
 
 #include "v8.h"  // NOLINT(build/include_order)
@@ -374,10 +375,6 @@ enum OptionEnvvarSettings {
   // Disallow the options to be set via the environment variable, like
   // `NODE_OPTIONS`.
   kDisallowedInEnvvar = 1,
-  // Deprecated, use kAllowedInEnvvar instead.
-  kAllowedInEnvironment = kAllowedInEnvvar,
-  // Deprecated, use kDisallowedInEnvvar instead.
-  kDisallowedInEnvironment = kDisallowedInEnvvar,
 };
 
 // Process the arguments and set up the per-process options.
@@ -450,8 +447,11 @@ class NODE_EXTERN MultiIsolatePlatform : public v8::Platform {
 
   // This function may only be called once per `Isolate`, and discard any
   // pending delayed tasks scheduled for that isolate.
-  // This needs to be called right before calling `Isolate::Dispose()`.
+  // This needs to be called right after calling `Isolate::Dispose()`.
   virtual void UnregisterIsolate(v8::Isolate* isolate) = 0;
+  // This disposes, unregisters and frees up an isolate that's allocated using
+  // v8::Isolate::Allocate() in the correct order to prevent race conditions.
+  void DisposeIsolate(v8::Isolate* isolate);
 
   // The platform should call the passed function once all state associated
   // with the given isolate has been cleaned up. This can, but does not have to,
@@ -483,6 +483,7 @@ struct IsolateSettings {
   v8::Isolate::AbortOnUncaughtExceptionCallback
       should_abort_on_uncaught_exception_callback = nullptr;
   v8::FatalErrorCallback fatal_error_callback = nullptr;
+  v8::OOMErrorCallback oom_error_callback = nullptr;
   v8::PrepareStackTraceCallback prepare_stack_trace_callback = nullptr;
 
   // Miscellaneous callbacks
@@ -491,6 +492,21 @@ struct IsolateSettings {
       allow_wasm_code_generation_callback = nullptr;
   v8::ModifyCodeGenerationFromStringsCallback2
       modify_code_generation_from_strings_callback = nullptr;
+
+  // When the settings is passed to NewIsolate():
+  // - If cpp_heap is not nullptr, this CppHeap will be used to create
+  //   the isolate and its ownership will be passed to V8.
+  // - If this is nullptr, Node.js will create a CppHeap that will be
+  //   owned by V8.
+  //
+  // When the settings is passed to SetIsolateUpForNode():
+  // cpp_heap will be ignored. Embedders must ensure that the
+  // v8::Isolate has a CppHeap attached while it's still used by
+  // Node.js, for example using v8::CreateParams.
+  //
+  // See https://issues.chromium.org/issues/42203693. In future version
+  // of V8, this CppHeap will be created by V8 if not provided.
+  v8::CppHeap* cpp_heap = nullptr;
 };
 
 // Represents a startup snapshot blob, e.g. created by passing
@@ -545,8 +561,8 @@ class EmbedderSnapshotData {
   void ToFile(FILE* out) const;
   std::vector<char> ToBlob() const;
 
-  // Returns whether custom snapshots can be used. Currently, this means
-  // that V8 was configured without the shared-readonly-heap feature.
+  // Returns whether custom snapshots can be used. Currently, this always
+  // returns false since V8 enforces shared readonly-heap.
   static bool CanUseCustomSnapshotPerIsolate();
 
   EmbedderSnapshotData(const EmbedderSnapshotData&) = delete;
@@ -658,10 +674,14 @@ enum Flags : uint64_t {
   // inspector in situations where one has already been created,
   // e.g. Blink's in Chromium.
   kNoCreateInspector = 1 << 9,
-  // Controls where or not the InspectorAgent for this Environment should
-  // call StartDebugSignalHandler.  This control is needed by embedders who may
+  // Controls whether or not the InspectorAgent for this Environment should
+  // call StartDebugSignalHandler. This control is needed by embedders who may
   // not want to allow other processes to start the V8 inspector.
-  kNoStartDebugSignalHandler = 1 << 10
+  kNoStartDebugSignalHandler = 1 << 10,
+  // Controls whether the InspectorAgent created for this Environment waits for
+  // Inspector frontend events during the Environment creation. It's used to
+  // call node::Stop(env) on a Worker thread that is waiting for the events.
+  kNoWaitForInspectorFrontend = 1 << 11
 };
 }  // namespace EnvironmentFlags
 
@@ -1019,44 +1039,38 @@ NODE_DEPRECATED("Use v8::Date::ValueOf() directly",
 })
 #define NODE_V8_UNIXTIME node::NODE_V8_UNIXTIME
 
-#define NODE_DEFINE_CONSTANT(target, constant)                                \
-  do {                                                                        \
-    v8::Isolate* isolate = target->GetIsolate();                              \
-    v8::Local<v8::Context> context = isolate->GetCurrentContext();            \
-    v8::Local<v8::String> constant_name =                                     \
-        v8::String::NewFromUtf8(isolate, #constant,                           \
-            v8::NewStringType::kInternalized).ToLocalChecked();               \
-    v8::Local<v8::Number> constant_value =                                    \
-        v8::Number::New(isolate, static_cast<double>(constant));              \
-    v8::PropertyAttribute constant_attributes =                               \
-        static_cast<v8::PropertyAttribute>(v8::ReadOnly | v8::DontDelete);    \
-    (target)->DefineOwnProperty(context,                                      \
-                                constant_name,                                \
-                                constant_value,                               \
-                                constant_attributes).Check();                 \
-  }                                                                           \
-  while (0)
+#define NODE_DEFINE_CONSTANT(target, constant)                                 \
+  do {                                                                         \
+    v8::Isolate* isolate = target->GetIsolate();                               \
+    v8::Local<v8::Context> context = isolate->GetCurrentContext();             \
+    v8::Local<v8::String> constant_name = v8::String::NewFromUtf8Literal(      \
+        isolate, #constant, v8::NewStringType::kInternalized);                 \
+    v8::Local<v8::Number> constant_value =                                     \
+        v8::Number::New(isolate, static_cast<double>(constant));               \
+    v8::PropertyAttribute constant_attributes =                                \
+        static_cast<v8::PropertyAttribute>(v8::ReadOnly | v8::DontDelete);     \
+    (target)                                                                   \
+        ->DefineOwnProperty(                                                   \
+            context, constant_name, constant_value, constant_attributes)       \
+        .Check();                                                              \
+  } while (0)
 
-#define NODE_DEFINE_HIDDEN_CONSTANT(target, constant)                         \
-  do {                                                                        \
-    v8::Isolate* isolate = target->GetIsolate();                              \
-    v8::Local<v8::Context> context = isolate->GetCurrentContext();            \
-    v8::Local<v8::String> constant_name =                                     \
-        v8::String::NewFromUtf8(isolate, #constant,                           \
-                                v8::NewStringType::kInternalized)             \
-                                  .ToLocalChecked();                          \
-    v8::Local<v8::Number> constant_value =                                    \
-        v8::Number::New(isolate, static_cast<double>(constant));              \
-    v8::PropertyAttribute constant_attributes =                               \
-        static_cast<v8::PropertyAttribute>(v8::ReadOnly |                     \
-                                           v8::DontDelete |                   \
-                                           v8::DontEnum);                     \
-    (target)->DefineOwnProperty(context,                                      \
-                                constant_name,                                \
-                                constant_value,                               \
-                                constant_attributes).Check();                 \
-  }                                                                           \
-  while (0)
+#define NODE_DEFINE_HIDDEN_CONSTANT(target, constant)                          \
+  do {                                                                         \
+    v8::Isolate* isolate = target->GetIsolate();                               \
+    v8::Local<v8::Context> context = isolate->GetCurrentContext();             \
+    v8::Local<v8::String> constant_name = v8::String::NewFromUtf8Literal(      \
+        isolate, #constant, v8::NewStringType::kInternalized);                 \
+    v8::Local<v8::Number> constant_value =                                     \
+        v8::Number::New(isolate, static_cast<double>(constant));               \
+    v8::PropertyAttribute constant_attributes =                                \
+        static_cast<v8::PropertyAttribute>(v8::ReadOnly | v8::DontDelete |     \
+                                           v8::DontEnum);                      \
+    (target)                                                                   \
+        ->DefineOwnProperty(                                                   \
+            context, constant_name, constant_value, constant_attributes)       \
+        .Check();                                                              \
+  } while (0)
 
 // Used to be a macro, hence the uppercase name.
 inline void NODE_SET_METHOD(v8::Local<v8::Template> recv,
@@ -1128,16 +1142,37 @@ NODE_EXTERN enum encoding ParseEncoding(
 NODE_EXTERN void FatalException(v8::Isolate* isolate,
                                 const v8::TryCatch& try_catch);
 
-NODE_EXTERN v8::Local<v8::Value> Encode(v8::Isolate* isolate,
-                                        const char* buf,
-                                        size_t len,
-                                        enum encoding encoding = LATIN1);
+NODE_EXTERN v8::MaybeLocal<v8::Value> TryEncode(
+    v8::Isolate* isolate,
+    const char* buf,
+    size_t len,
+    enum encoding encoding = LATIN1);
 
 // Warning: This reverses endianness on Big Endian platforms, even though the
 // signature using uint16_t implies that it should not.
-NODE_EXTERN v8::Local<v8::Value> Encode(v8::Isolate* isolate,
-                                        const uint16_t* buf,
-                                        size_t len);
+NODE_EXTERN v8::MaybeLocal<v8::Value> TryEncode(v8::Isolate* isolate,
+                                                const uint16_t* buf,
+                                                size_t len);
+
+// The original Encode(...) functions are deprecated because they do not
+// appropriately propagate exceptions and instead rely on ToLocalChecked()
+// which crashes the process if an exception occurs. We cannot just remove
+// these as it would break ABI compatibility, so we keep them around but
+// deprecate them in favor of the TryEncode(...) variations which return
+// a MaybeLocal<> and do not crash the process if an exception occurs.
+NODE_DEPRECATED(
+    "Use TryEncode(...) instead",
+    NODE_EXTERN v8::Local<v8::Value> Encode(v8::Isolate* isolate,
+                                            const char* buf,
+                                            size_t len,
+                                            enum encoding encoding = LATIN1));
+
+// Warning: This reverses endianness on Big Endian platforms, even though the
+// signature using uint16_t implies that it should not.
+NODE_DEPRECATED("Use TryEncode(...) instead",
+                NODE_EXTERN v8::Local<v8::Value> Encode(v8::Isolate* isolate,
+                                                        const uint16_t* buf,
+                                                        size_t len));
 
 // Returns -1 if the handle was not valid for decoding
 NODE_EXTERN ssize_t DecodeBytes(v8::Isolate* isolate,
@@ -1387,6 +1422,12 @@ NODE_EXTERN void RequestInterrupt(Environment* env,
  * I/O from native code. */
 NODE_EXTERN async_id AsyncHooksGetExecutionAsyncId(v8::Isolate* isolate);
 
+/* Returns the id of the current execution context. If the return value is
+ * zero then no execution has been set. This will happen if the user handles
+ * I/O from native code. */
+NODE_EXTERN async_id
+AsyncHooksGetExecutionAsyncId(v8::Local<v8::Context> context);
+
 /* Return same value as async_hooks.triggerAsyncId(); */
 NODE_EXTERN async_id AsyncHooksGetTriggerAsyncId(v8::Isolate* isolate);
 
@@ -1530,6 +1571,7 @@ class NODE_EXTERN AsyncResource {
  private:
   Environment* env_;
   v8::Global<v8::Object> resource_;
+  v8::Global<v8::Value> context_frame_;
   async_context async_context_;
 };
 
@@ -1548,24 +1590,14 @@ void RegisterSignalHandler(int signal,
                            bool reset_handler = false);
 #endif  // _WIN32
 
-// Configure the layout of the JavaScript object with a cppgc::GarbageCollected
-// instance so that when the JavaScript object is reachable, the garbage
-// collected instance would have its Trace() method invoked per the cppgc
-// contract. To make it work, the process must have called
-// cppgc::InitializeProcess() before, which is usually the case for addons
-// loaded by the stand-alone Node.js executable. Embedders of Node.js can use
-// either need to call it themselves or make sure that
-// ProcessInitializationFlags::kNoInitializeCppgc is *not* set for cppgc to
-// work.
-// If the CppHeap is owned by Node.js, which is usually the case for addon,
-// the object must be created with at least two internal fields available,
-// and the first two internal fields would be configured by Node.js.
-// This may be superseded by a V8 API in the future, see
-// https://bugs.chromium.org/p/v8/issues/detail?id=13960. Until then this
-// serves as a helper for Node.js isolates.
-NODE_EXTERN void SetCppgcReference(v8::Isolate* isolate,
-                                   v8::Local<v8::Object> object,
-                                   void* wrappable);
+// This is kept as a compatibility layer for addons to wrap cppgc-managed
+// objects on Node.js versions without v8::Object::Wrap(). Addons created to
+// work with only Node.js versions with v8::Object::Wrap() should use that
+// instead.
+NODE_DEPRECATED("Use v8::Object::Wrap()",
+                NODE_EXTERN void SetCppgcReference(v8::Isolate* isolate,
+                                                   v8::Local<v8::Object> object,
+                                                   void* wrappable));
 
 }  // namespace node
 

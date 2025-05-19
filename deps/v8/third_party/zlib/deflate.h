@@ -1,5 +1,5 @@
 /* deflate.h -- internal compression state
- * Copyright (C) 1995-2018 Jean-loup Gailly
+ * Copyright (C) 1995-2024 Jean-loup Gailly
  * For conditions of distribution and use, see copyright notice in zlib.h
  */
 
@@ -281,6 +281,13 @@ typedef struct internal_state {
     /* 0 if Rabin-Karp rolling hash is enabled, non-zero if chromium zlib
      * hash is enabled.
      */
+
+#if defined(QAT_COMPRESSION_ENABLED)
+    /* Pointer to a struct that contains the current state of the QAT
+     * stream.
+     */
+    struct qat_deflate *qat_s;
+#endif
 
 } FAR deflate_state;
 

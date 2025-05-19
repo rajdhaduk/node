@@ -4,9 +4,6 @@
 .\" * Language reference:
 .\"   https://man.openbsd.org/mdoc.7
 .\"
-.\" * Atom editor support:
-.\"   https://atom.io/packages/language-roff
-.\"
 .\" * Linting changes:
 .\"   mandoc -Wall -Tlint /path/to/this.file  # BSD
 .\"   groff -w all -z /path/to/this.file      # GNU/Linux, macOS
@@ -163,10 +160,17 @@ Requires Node.js to be built with
 .It Fl -enable-source-maps
 Enable Source Map V3 support for stack traces.
 .
-.It Fl -experimental-default-type Ns = Ns Ar type
-Interpret as either ES modules or CommonJS modules input via --eval or STDIN, when --input-type is unspecified;
-.js or extensionless files with no sibling or parent package.json;
-.js or extensionless files whose nearest parent package.json lacks a "type" field, unless under node_modules.
+.It Fl -entry-url
+Interpret the entry point as a URL.
+.
+.It Fl -experimental-addon-modules
+Enable experimental addon module support.
+.
+.It Fl -experimental-config-file
+Specifies the configuration file to load.
+.
+.It Fl -experimental-default-config-file
+Enable support for automatically loading node.config.json.
 .
 .It Fl -experimental-import-meta-resolve
 Enable experimental ES modules support for import.meta.resolve().
@@ -176,11 +180,8 @@ Specify the
 .Ar module
 to use as a custom module loader.
 .
-.It Fl -experimental-network-imports
-Enable experimental support for loading modules using `import` over `https:`.
-.
-.It Fl -experimental-permission
-Enable the experimental permission model.
+.It Fl -permission
+Enable the permission model.
 .
 .It Fl -experimental-shadow-realm
 Use this flag to enable ShadowRealm support.
@@ -191,8 +192,8 @@ Enable code coverage in the test runner.
 .It Fl -experimental-test-module-mocks
 Enable module mocking in the test runner.
 .
-.It Fl -experimental-test-snapshots
-Enable snapshot testing in the test runner.
+.It Fl -experimental-transform-types
+Enable transformation of TypeScript-only syntax into JavaScript code.
 .
 .It Fl -experimental-eventsource
 Enable experimental support for the EventSource Web API.
@@ -200,8 +201,17 @@ Enable experimental support for the EventSource Web API.
 .It Fl -no-experimental-websocket
 Disable experimental support for the WebSocket API.
 .
+.It Fl -experimental-webstorage
+Enable experimental support for the Web Storage API.
+.
 .It Fl -no-experimental-repl-await
 Disable top-level await keyword support in REPL.
+.
+.It Fl -no-experimental-sqlite
+Disable the experimental node:sqlite module.
+.
+.It Fl -no-experimental-strip-types
+Disable experimental type-stripping for TypeScript files.
 .
 .It Fl -experimental-vm-modules
 Enable experimental ES module support in VM module.
@@ -212,6 +222,9 @@ flag is no longer required as WASI is enabled by default.
 .
 .It Fl -experimental-wasm-modules
 Enable experimental WebAssembly module support.
+.
+.It Fl -experimental-quic
+Enable the experimental QUIC support.
 .
 .It Fl -force-context-aware
 Disable loading native addons that are not context-aware.
@@ -312,6 +325,9 @@ other platforms, but the performance impact may be severe.
 .Pp
 This flag is inherited from V8 and is subject to change upstream. It may
 disappear in a non-semver-major release.
+.
+.It Fl -localstorage-file Ns = Ns Ar file
+The file used to store localStorage data.
 .
 .It Fl -max-http-header-size Ns = Ns Ar size
 Specify the maximum size of HTTP headers in bytes. Defaults to 16 KiB.
@@ -429,9 +445,30 @@ Starts the Node.js command line test runner.
 The maximum number of test files that the test runner CLI will execute
 concurrently.
 .
+.It Fl -test-coverage-branches Ns = Ns Ar threshold
+Require a minimum threshold for branch coverage (0 - 100).
+.
+.It Fl -test-coverage-exclude
+A glob pattern that excludes matching files from the coverage report
+.
+.It Fl -test-coverage-functions Ns = Ns Ar threshold
+Require a minimum threshold for function coverage (0 - 100).
+.
+.It Fl -test-coverage-include
+A glob pattern that only includes matching files in the coverage report
+.
+.It Fl -test-coverage-lines Ns = Ns Ar threshold
+Require a minimum threshold for line coverage (0 - 100).
+.
 .It Fl -test-force-exit
 Configures the test runner to exit the process once all known tests have
 finished executing even if the event loop would otherwise remain active.
+.
+.It Fl -test-global-setup
+Specifies a module containing global setup and teardown functions for the test runner.
+.
+.It Fl -test-isolation Ns = Ns Ar mode
+Configures the type of test isolation used in the test runner.
 .
 .It Fl -test-name-pattern
 A regular expression that configures the test runner to only execute tests
@@ -582,7 +619,7 @@ If set to 0 then V8 will choose an appropriate size of the thread pool based on 
 If the value provided is larger than V8's maximum, then the largest value will be chosen.
 .
 .It Fl -zero-fill-buffers
-Automatically zero-fills all newly allocated Buffer and SlowBuffer instances.
+Automatically zero-fills all newly allocated Buffer instances.
 .
 .It Fl c , Fl -check
 Check the script's syntax without executing it.
@@ -798,8 +835,3 @@ Documentation:
 .Pp
 GitHub repository and issue tracker:
 .Sy https://github.com/nodejs/node
-.
-.Pp
-IRC (general questions):
-.Sy "libera.chat #node.js"
-(unofficial)

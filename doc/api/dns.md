@@ -15,13 +15,22 @@ facilities to perform name resolution. It may not need to perform any network
 communication. To perform name resolution the way other applications on the same
 system do, use [`dns.lookup()`][].
 
-```js
+```mjs
+import dns from 'node:dns';
+
+dns.lookup('example.org', (err, address, family) => {
+  console.log('address: %j family: IPv%s', address, family);
+});
+// address: "2606:2800:21f:cb07:6820:80da:af6b:8b2c" family: IPv6
+```
+
+```cjs
 const dns = require('node:dns');
 
 dns.lookup('example.org', (err, address, family) => {
   console.log('address: %j family: IPv%s', address, family);
 });
-// address: "93.184.216.34" family: IPv4
+// address: "2606:2800:21f:cb07:6820:80da:af6b:8b2c" family: IPv6
 ```
 
 All other functions in the `node:dns` module connect to an actual DNS server to
@@ -30,7 +39,26 @@ queries. These functions do not use the same set of configuration files used by
 [`dns.lookup()`][] (e.g. `/etc/hosts`). Use these functions to always perform
 DNS queries, bypassing other name-resolution facilities.
 
-```js
+```mjs
+import dns from 'node:dns';
+
+dns.resolve4('archive.org', (err, addresses) => {
+  if (err) throw err;
+
+  console.log(`addresses: ${JSON.stringify(addresses)}`);
+
+  addresses.forEach((a) => {
+    dns.reverse(a, (err, hostnames) => {
+      if (err) {
+        throw err;
+      }
+      console.log(`reverse for ${a}: ${JSON.stringify(hostnames)}`);
+    });
+  });
+});
+```
+
+```cjs
 const dns = require('node:dns');
 
 dns.resolve4('archive.org', (err, addresses) => {
@@ -64,7 +92,18 @@ the servers used for a resolver using
 [`resolver.setServers()`][`dns.setServers()`] does not affect
 other resolvers:
 
-```js
+```mjs
+import { Resolver } from 'node:dns';
+const resolver = new Resolver();
+resolver.setServers(['4.4.4.4']);
+
+// This request will use the server at 4.4.4.4, independent of global settings.
+resolver.resolve4('example.org', (err, addresses) => {
+  // ...
+});
+```
+
+```cjs
 const { Resolver } = require('node:dns');
 const resolver = new Resolver();
 resolver.setServers(['4.4.4.4']);
@@ -90,6 +129,7 @@ The following methods from the `node:dns` module are available:
 * [`resolver.resolvePtr()`][`dns.resolvePtr()`]
 * [`resolver.resolveSoa()`][`dns.resolveSoa()`]
 * [`resolver.resolveSrv()`][`dns.resolveSrv()`]
+* [`resolver.resolveTlsa()`][`dns.resolveTlsa()`]
 * [`resolver.resolveTxt()`][`dns.resolveTxt()`]
 * [`resolver.reverse()`][`dns.reverse()`]
 * [`resolver.setServers()`][`dns.setServers()`]
@@ -262,21 +302,38 @@ time to consult the [Implementation considerations section][] before using
 
 Example usage:
 
-```js
+```mjs
+import dns from 'node:dns';
+const options = {
+  family: 6,
+  hints: dns.ADDRCONFIG | dns.V4MAPPED,
+};
+dns.lookup('example.org', options, (err, address, family) =>
+  console.log('address: %j family: IPv%s', address, family));
+// address: "2606:2800:21f:cb07:6820:80da:af6b:8b2c" family: IPv6
+
+// When options.all is true, the result will be an Array.
+options.all = true;
+dns.lookup('example.org', options, (err, addresses) =>
+  console.log('addresses: %j', addresses));
+// addresses: [{"address":"2606:2800:21f:cb07:6820:80da:af6b:8b2c","family":6}]
+```
+
+```cjs
 const dns = require('node:dns');
 const options = {
   family: 6,
   hints: dns.ADDRCONFIG | dns.V4MAPPED,
 };
-dns.lookup('example.com', options, (err, address, family) =>
+dns.lookup('example.org', options, (err, address, family) =>
   console.log('address: %j family: IPv%s', address, family));
-// address: "2606:2800:220:1:248:1893:25c8:1946" family: IPv6
+// address: "2606:2800:21f:cb07:6820:80da:af6b:8b2c" family: IPv6
 
 // When options.all is true, the result will be an Array.
 options.all = true;
-dns.lookup('example.com', options, (err, addresses) =>
+dns.lookup('example.org', options, (err, addresses) =>
   console.log('addresses: %j', addresses));
-// addresses: [{"address":"2606:2800:220:1:248:1893:25c8:1946","family":6}]
+// addresses: [{"address":"2606:2800:21f:cb07:6820:80da:af6b:8b2c","family":6}]
 ```
 
 If this method is invoked as its [`util.promisify()`][]ed version, and `all`
@@ -333,7 +390,15 @@ will be thrown.
 
 On an error, `err` is an [`Error`][] object, where `err.code` is the error code.
 
-```js
+```mjs
+import dns from 'node:dns';
+dns.lookupService('127.0.0.1', 22, (err, hostname, service) => {
+  console.log(hostname, service);
+  // Prints: localhost ssh
+});
+```
+
+```cjs
 const dns = require('node:dns');
 dns.lookupService('127.0.0.1', 22, (err, hostname, service) => {
   console.log(hostname, service);
@@ -380,6 +445,7 @@ records. The type and structure of individual results varies based on `rrtype`:
 | `'PTR'`   | pointer records                | {string}    | [`dns.resolvePtr()`][]   |
 | `'SOA'`   | start of authority records     | {Object}    | [`dns.resolveSoa()`][]   |
 | `'SRV'`   | service records                | {Object}    | [`dns.resolveSrv()`][]   |
+| `'TLSA'`  | certificate associations       | {Object}    | [`dns.resolveTlsa()`][]  |
 | `'TXT'`   | text records                   | {string\[]} | [`dns.resolveTxt()`][]   |
 
 On error, `err` is an [`Error`][] object, where `err.code` is one of the
@@ -479,6 +545,7 @@ will be present on the object:
 | `'PTR'`   | `value`                                                                                                                                          |
 | `'SOA'`   | Refer to [`dns.resolveSoa()`][]                                                                                                                  |
 | `'SRV'`   | Refer to [`dns.resolveSrv()`][]                                                                                                                  |
+| `'TLSA'`  | Refer to [`dns.resolveTlsa()`][]                                                                                                                 |
 | `'TXT'`   | This type of record contains an array property called `entries` which refers to [`dns.resolveTxt()`][], e.g. `{ entries: ['...'], type: 'TXT' }` |
 
 Here is an example of the `ret` object passed to the callback:
@@ -738,6 +805,43 @@ be an array of objects with the following properties:
 }
 ```
 
+## `dns.resolveTlsa(hostname, callback)`
+
+<!-- YAML
+added:
+  - v23.9.0
+  - v22.15.0
+-->
+
+<!--lint disable no-undefined-references list-item-bullet-indent-->
+
+* `hostname` {string}
+* `callback` {Function}
+  * `err` {Error}
+  * `records` {Object\[]}
+
+<!--lint enable no-undefined-references list-item-bullet-indent-->
+
+Uses the DNS protocol to resolve certificate associations (`TLSA` records) for
+the `hostname`. The `records` argument passed to the `callback` function is an
+array of objects with these properties:
+
+* `certUsage`
+* `selector`
+* `match`
+* `data`
+
+<!-- eslint-skip -->
+
+```js
+{
+  certUsage: 3,
+  selector: 1,
+  match: 1,
+  data: [ArrayBuffer]
+}
+```
+
 ## `dns.resolveTxt(hostname, callback)`
 
 <!-- YAML
@@ -904,7 +1008,16 @@ the servers used for a resolver using
 [`resolver.setServers()`][`dnsPromises.setServers()`] does not affect
 other resolvers:
 
-```js
+```mjs
+import { Resolver } from 'node:dns/promises';
+const resolver = new Resolver();
+resolver.setServers(['4.4.4.4']);
+
+// This request will use the server at 4.4.4.4, independent of global settings.
+const addresses = await resolver.resolve4('example.org');
+```
+
+```cjs
 const { Resolver } = require('node:dns').promises;
 const resolver = new Resolver();
 resolver.setServers(['4.4.4.4']);
@@ -935,6 +1048,7 @@ The following methods from the `dnsPromises` API are available:
 * [`resolver.resolvePtr()`][`dnsPromises.resolvePtr()`]
 * [`resolver.resolveSoa()`][`dnsPromises.resolveSoa()`]
 * [`resolver.resolveSrv()`][`dnsPromises.resolveSrv()`]
+* [`resolver.resolveTlsa()`][`dnsPromises.resolveTlsa()`]
 * [`resolver.resolveTxt()`][`dnsPromises.resolveTxt()`]
 * [`resolver.reverse()`][`dnsPromises.reverse()`]
 * [`resolver.setServers()`][`dnsPromises.setServers()`]
@@ -1036,7 +1150,28 @@ using `dnsPromises.lookup()`.
 
 Example usage:
 
-```js
+```mjs
+import dns from 'node:dns';
+const dnsPromises = dns.promises;
+const options = {
+  family: 6,
+  hints: dns.ADDRCONFIG | dns.V4MAPPED,
+};
+
+await dnsPromises.lookup('example.org', options).then((result) => {
+  console.log('address: %j family: IPv%s', result.address, result.family);
+  // address: "2606:2800:21f:cb07:6820:80da:af6b:8b2c" family: IPv6
+});
+
+// When options.all is true, the result will be an Array.
+options.all = true;
+await dnsPromises.lookup('example.org', options).then((result) => {
+  console.log('addresses: %j', result);
+  // addresses: [{"address":"2606:2800:21f:cb07:6820:80da:af6b:8b2c","family":6}]
+});
+```
+
+```cjs
 const dns = require('node:dns');
 const dnsPromises = dns.promises;
 const options = {
@@ -1044,16 +1179,16 @@ const options = {
   hints: dns.ADDRCONFIG | dns.V4MAPPED,
 };
 
-dnsPromises.lookup('example.com', options).then((result) => {
+dnsPromises.lookup('example.org', options).then((result) => {
   console.log('address: %j family: IPv%s', result.address, result.family);
-  // address: "2606:2800:220:1:248:1893:25c8:1946" family: IPv6
+  // address: "2606:2800:21f:cb07:6820:80da:af6b:8b2c" family: IPv6
 });
 
 // When options.all is true, the result will be an Array.
 options.all = true;
-dnsPromises.lookup('example.com', options).then((result) => {
+dnsPromises.lookup('example.org', options).then((result) => {
   console.log('addresses: %j', result);
-  // addresses: [{"address":"2606:2800:220:1:248:1893:25c8:1946","family":6}]
+  // addresses: [{"address":"2606:2800:21f:cb07:6820:80da:af6b:8b2c","family":6}]
 });
 ```
 
@@ -1076,7 +1211,14 @@ will be thrown.
 On error, the `Promise` is rejected with an [`Error`][] object, where `err.code`
 is the error code.
 
-```js
+```mjs
+import dnsPromises from 'node:dns/promises';
+const result = await dnsPromises.lookupService('127.0.0.1', 22);
+
+console.log(result.hostname, result.service); // Prints: localhost ssh
+```
+
+```cjs
 const dnsPromises = require('node:dns').promises;
 dnsPromises.lookupService('127.0.0.1', 22).then((result) => {
   console.log(result.hostname, result.service);
@@ -1111,6 +1253,7 @@ based on `rrtype`:
 | `'PTR'`   | pointer records                | {string}    | [`dnsPromises.resolvePtr()`][]   |
 | `'SOA'`   | start of authority records     | {Object}    | [`dnsPromises.resolveSoa()`][]   |
 | `'SRV'`   | service records                | {Object}    | [`dnsPromises.resolveSrv()`][]   |
+| `'TLSA'`  | certificate associations       | {Object}    | [`dnsPromises.resolveTlsa()`][]  |
 | `'TXT'`   | text records                   | {string\[]} | [`dnsPromises.resolveTxt()`][]   |
 
 On error, the `Promise` is rejected with an [`Error`][] object, where `err.code`
@@ -1175,6 +1318,7 @@ present on the object:
 | `'PTR'`   | `value`                                                                                                                                                  |
 | `'SOA'`   | Refer to [`dnsPromises.resolveSoa()`][]                                                                                                                  |
 | `'SRV'`   | Refer to [`dnsPromises.resolveSrv()`][]                                                                                                                  |
+| `'TLSA'`  | Refer to [`dnsPromises.resolveTlsa()`][]                                                                                                                 |
 | `'TXT'`   | This type of record contains an array property called `entries` which refers to [`dnsPromises.resolveTxt()`][], e.g. `{ entries: ['...'], type: 'TXT' }` |
 
 Here is an example of the result object:
@@ -1354,6 +1498,36 @@ the following properties:
   weight: 5,
   port: 21223,
   name: 'service.example.com'
+}
+```
+
+### `dnsPromises.resolveTlsa(hostname)`
+
+<!-- YAML
+added:
+  - v23.9.0
+  - v22.15.0
+-->
+
+* `hostname` {string}
+
+Uses the DNS protocol to resolve certificate associations (`TLSA` records) for
+the `hostname`. On success, the `Promise` is resolved with an array of objects
+with these properties:
+
+* `certUsage`
+* `selector`
+* `match`
+* `data`
+
+<!-- eslint-skip -->
+
+```js
+{
+  certUsage: 3,
+  selector: 1,
+  match: 1,
+  data: [ArrayBuffer]
 }
 ```
 
@@ -1557,6 +1731,7 @@ uses. For instance, they do not use the configuration from `/etc/hosts`.
 [`dns.resolvePtr()`]: #dnsresolveptrhostname-callback
 [`dns.resolveSoa()`]: #dnsresolvesoahostname-callback
 [`dns.resolveSrv()`]: #dnsresolvesrvhostname-callback
+[`dns.resolveTlsa()`]: #dnsresolvetlsahostname-callback
 [`dns.resolveTxt()`]: #dnsresolvetxthostname-callback
 [`dns.reverse()`]: #dnsreverseip-callback
 [`dns.setDefaultResultOrder()`]: #dnssetdefaultresultorderorder
@@ -1575,6 +1750,7 @@ uses. For instance, they do not use the configuration from `/etc/hosts`.
 [`dnsPromises.resolvePtr()`]: #dnspromisesresolveptrhostname
 [`dnsPromises.resolveSoa()`]: #dnspromisesresolvesoahostname
 [`dnsPromises.resolveSrv()`]: #dnspromisesresolvesrvhostname
+[`dnsPromises.resolveTlsa()`]: #dnspromisesresolvetlsahostname
 [`dnsPromises.resolveTxt()`]: #dnspromisesresolvetxthostname
 [`dnsPromises.reverse()`]: #dnspromisesreverseip
 [`dnsPromises.setDefaultResultOrder()`]: #dnspromisessetdefaultresultorderorder

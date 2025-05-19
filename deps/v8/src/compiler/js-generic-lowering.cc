@@ -591,16 +591,19 @@ void JSGenericLowering::LowerJSHasContextExtension(Node* node) {
   UNREACHABLE();  // Eliminated in typed lowering.
 }
 
+void JSGenericLowering::LowerJSLoadContextNoCell(Node* node) {
+  UNREACHABLE();  // Eliminated in typed lowering.
+}
+
 void JSGenericLowering::LowerJSLoadContext(Node* node) {
   UNREACHABLE();  // Eliminated in typed lowering.
 }
 
-
-void JSGenericLowering::LowerJSStoreContext(Node* node) {
+void JSGenericLowering::LowerJSStoreContextNoCell(Node* node) {
   UNREACHABLE();  // Eliminated in typed lowering.
 }
 
-void JSGenericLowering::LowerJSStoreScriptContext(Node* node) {
+void JSGenericLowering::LowerJSStoreContext(Node* node) {
   UNREACHABLE();  // Eliminated in context specialization.
 }
 
@@ -672,6 +675,10 @@ void JSGenericLowering::LowerJSObjectIsArray(Node* node) {
 
 void JSGenericLowering::LowerJSCreateObject(Node* node) {
   ReplaceWithBuiltinCall(node, Builtin::kCreateObjectWithoutProperties);
+}
+
+void JSGenericLowering::LowerJSCreateStringWrapper(Node* node) {
+  UNREACHABLE();  // Eliminated in typed lowering.
 }
 
 void JSGenericLowering::LowerJSParseInt(Node* node) {
@@ -762,7 +769,7 @@ void JSGenericLowering::LowerJSCreateLiteralArray(Node* node) {
       p.length() < ConstructorBuiltins::kMaximumClonedShallowArrayElements) {
     ReplaceWithBuiltinCall(node, Builtin::kCreateShallowArrayLiteral);
   } else {
-    ReplaceWithRuntimeCall(node, Runtime::kCreateArrayLiteral);
+    ReplaceWithBuiltinCall(node, Builtin::kCreateArrayFromSlowBoilerplate);
   }
 }
 
@@ -816,7 +823,7 @@ void JSGenericLowering::LowerJSCreateLiteralObject(Node* node) {
           ConstructorBuiltins::kMaximumClonedShallowObjectProperties) {
     ReplaceWithBuiltinCall(node, Builtin::kCreateShallowObjectLiteral);
   } else {
-    ReplaceWithRuntimeCall(node, Runtime::kCreateObjectLiteral);
+    ReplaceWithBuiltinCall(node, Builtin::kCreateObjectFromSlowBoilerplate);
   }
 }
 
@@ -1161,7 +1168,7 @@ void JSGenericLowering::LowerJSGeneratorRestoreContinuation(Node* node) {
   UNREACHABLE();  // Eliminated in typed lowering.
 }
 
-void JSGenericLowering::LowerJSGeneratorRestoreContext(Node* node) {
+void JSGenericLowering::LowerJSGeneratorRestoreContextNoCell(Node* node) {
   UNREACHABLE();  // Eliminated in typed lowering.
 }
 
@@ -1263,9 +1270,7 @@ Zone* JSGenericLowering::zone() const { return graph()->zone(); }
 
 Isolate* JSGenericLowering::isolate() const { return jsgraph()->isolate(); }
 
-
-Graph* JSGenericLowering::graph() const { return jsgraph()->graph(); }
-
+TFGraph* JSGenericLowering::graph() const { return jsgraph()->graph(); }
 
 CommonOperatorBuilder* JSGenericLowering::common() const {
   return jsgraph()->common();

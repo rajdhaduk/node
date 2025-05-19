@@ -54,20 +54,16 @@ Reduction JSIntrinsicLowering::Reduce(Node* node) {
       return ReduceGeneratorClose(node);
     case Runtime::kInlineCreateJSGeneratorObject:
       return ReduceCreateJSGeneratorObject(node);
-    case Runtime::kInlineAsyncFunctionAwaitCaught:
-      return ReduceAsyncFunctionAwaitCaught(node);
-    case Runtime::kInlineAsyncFunctionAwaitUncaught:
-      return ReduceAsyncFunctionAwaitUncaught(node);
+    case Runtime::kInlineAsyncFunctionAwait:
+      return ReduceAsyncFunctionAwait(node);
     case Runtime::kInlineAsyncFunctionEnter:
       return ReduceAsyncFunctionEnter(node);
     case Runtime::kInlineAsyncFunctionReject:
       return ReduceAsyncFunctionReject(node);
     case Runtime::kInlineAsyncFunctionResolve:
       return ReduceAsyncFunctionResolve(node);
-    case Runtime::kInlineAsyncGeneratorAwaitCaught:
-      return ReduceAsyncGeneratorAwaitCaught(node);
-    case Runtime::kInlineAsyncGeneratorAwaitUncaught:
-      return ReduceAsyncGeneratorAwaitUncaught(node);
+    case Runtime::kInlineAsyncGeneratorAwait:
+      return ReduceAsyncGeneratorAwait(node);
     case Runtime::kInlineAsyncGeneratorReject:
       return ReduceAsyncGeneratorReject(node);
     case Runtime::kInlineAsyncGeneratorResolve:
@@ -78,6 +74,8 @@ Reduction JSIntrinsicLowering::Reduce(Node* node) {
       return ReduceGeneratorGetResumeMode(node);
     case Runtime::kInlineIncBlockCounter:
       return ReduceIncBlockCounter(node);
+    case Runtime::kInlineAddLhsIsStringConstantInternalize:
+      return ReduceAddLhsIsStringConstantInternalize(node);
     case Runtime::kInlineGetImportMetaObject:
       return ReduceGetImportMetaObject(node);
     default:
@@ -162,17 +160,9 @@ Reduction JSIntrinsicLowering::ReduceGeneratorClose(Node* node) {
   return Change(node, op, generator, closed, effect, control);
 }
 
-Reduction JSIntrinsicLowering::ReduceAsyncFunctionAwaitCaught(Node* node) {
+Reduction JSIntrinsicLowering::ReduceAsyncFunctionAwait(Node* node) {
   return Change(
-      node,
-      Builtins::CallableFor(isolate(), Builtin::kAsyncFunctionAwaitCaught), 0);
-}
-
-Reduction JSIntrinsicLowering::ReduceAsyncFunctionAwaitUncaught(Node* node) {
-  return Change(
-      node,
-      Builtins::CallableFor(isolate(), Builtin::kAsyncFunctionAwaitUncaught),
-      0);
+      node, Builtins::CallableFor(isolate(), Builtin::kAsyncFunctionAwait), 0);
 }
 
 Reduction JSIntrinsicLowering::ReduceAsyncFunctionEnter(Node* node) {
@@ -192,17 +182,9 @@ Reduction JSIntrinsicLowering::ReduceAsyncFunctionResolve(Node* node) {
   return Changed(node);
 }
 
-Reduction JSIntrinsicLowering::ReduceAsyncGeneratorAwaitCaught(Node* node) {
+Reduction JSIntrinsicLowering::ReduceAsyncGeneratorAwait(Node* node) {
   return Change(
-      node,
-      Builtins::CallableFor(isolate(), Builtin::kAsyncGeneratorAwaitCaught), 0);
-}
-
-Reduction JSIntrinsicLowering::ReduceAsyncGeneratorAwaitUncaught(Node* node) {
-  return Change(
-      node,
-      Builtins::CallableFor(isolate(), Builtin::kAsyncGeneratorAwaitUncaught),
-      0);
+      node, Builtins::CallableFor(isolate(), Builtin::kAsyncGeneratorAwait), 0);
 }
 
 Reduction JSIntrinsicLowering::ReduceAsyncGeneratorReject(Node* node) {
@@ -375,6 +357,12 @@ Reduction JSIntrinsicLowering::ReduceIncBlockCounter(Node* node) {
                 kDoesNotNeedFrameState);
 }
 
+Reduction JSIntrinsicLowering::ReduceAddLhsIsStringConstantInternalize(
+    Node* node) {
+  auto builtin = Builtin::kAddLhsIsStringConstantInternalizeWithVector;
+  return Change(node, Builtins::CallableFor(isolate(), builtin), 0);
+}
+
 Reduction JSIntrinsicLowering::ReduceGetImportMetaObject(Node* node) {
   NodeProperties::ChangeOp(node, javascript()->GetImportMeta());
   return Changed(node);
@@ -428,7 +416,7 @@ Reduction JSIntrinsicLowering::Change(Node* node, Callable const& callable,
   return Changed(node);
 }
 
-Graph* JSIntrinsicLowering::graph() const { return jsgraph()->graph(); }
+TFGraph* JSIntrinsicLowering::graph() const { return jsgraph()->graph(); }
 
 Isolate* JSIntrinsicLowering::isolate() const { return jsgraph()->isolate(); }
 

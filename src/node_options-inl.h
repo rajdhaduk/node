@@ -3,7 +3,9 @@
 
 #if defined(NODE_WANT_INTERNALS) && NODE_WANT_INTERNALS
 
+#include <algorithm>
 #include <cstdlib>
+#include <ranges>
 #include "node_options.h"
 #include "util.h"
 
@@ -15,6 +17,13 @@ PerIsolateOptions* PerProcessOptions::get_per_isolate_options() {
 
 EnvironmentOptions* PerIsolateOptions::get_per_env_options() {
   return per_env.get();
+}
+
+std::shared_ptr<PerIsolateOptions> PerIsolateOptions::Clone() const {
+  auto options =
+      std::shared_ptr<PerIsolateOptions>(new PerIsolateOptions(*this));
+  options->per_env = std::make_shared<EnvironmentOptions>(*per_env);
+  return options;
 }
 
 namespace options_parser {
@@ -386,15 +395,16 @@ void OptionsParser<Options>::Parse(
         // Implications for negated options are defined with "--no-".
         implied_name.insert(2, "no-");
       }
-      auto implications = implications_.equal_range(implied_name);
-      for (auto imp = implications.first; imp != implications.second; ++imp) {
-        if (imp->second.type == kV8Option) {
-          v8_args->push_back(imp->second.name);
-        } else {
-          *imp->second.target_field->template Lookup<bool>(options) =
-              imp->second.target_value;
-        }
-      }
+      auto [f, l] = implications_.equal_range(implied_name);
+      std::ranges::for_each(std::ranges::subrange(f, l) | std::views::values,
+                            [&](const auto& value) {
+                              if (value.type == kV8Option) {
+                                v8_args->push_back(value.name);
+                              } else {
+                                *value.target_field->template Lookup<bool>(
+                                    options) = value.target_value;
+                              }
+                            });
     }
 
     if (it == options_.end()) {
@@ -440,9 +450,14 @@ void OptionsParser<Options>::Parse(
       case kBoolean:
         *Lookup<bool>(info.field, options) = !is_negation;
         break;
-      case kInteger:
+      case kInteger: {
+        // Special case to pass --stack-trace-limit down to V8.
+        if (name == "--stack-trace-limit") {
+          v8_args->push_back(arg);
+        }
         *Lookup<int64_t>(info.field, options) = std::atoll(value.c_str());
         break;
+      }
       case kUInteger:
         *Lookup<uint64_t>(info.field, options) =
             std::strtoull(value.c_str(), nullptr, 10);

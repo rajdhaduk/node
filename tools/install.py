@@ -4,9 +4,14 @@ import argparse
 import ast
 import errno
 import os
+import platform
 import shutil
 import sys
 import re
+
+current_system = platform.system()
+
+SYSTEM_AIX = "AIX"
 
 def abspath(*args):
   path = os.path.join(*args)
@@ -44,6 +49,7 @@ def try_rmdir_r(options, path):
     except OSError as e:
       if e.errno == errno.ENOTEMPTY: return
       if e.errno == errno.ENOENT: return
+      if e.errno == errno.EEXIST and current_system == SYSTEM_AIX: return
       raise
     path = abspath(path, '..')
 
@@ -206,6 +212,7 @@ def headers(options, action):
       'include/cppgc/internal/caged-heap-local-data.h',
       'include/cppgc/internal/caged-heap.h',
       'include/cppgc/internal/compiler-specific.h',
+      'include/cppgc/internal/conditional-stack-allocated.h',
       'include/cppgc/internal/finalizer-trait.h',
       'include/cppgc/internal/gc-info.h',
       'include/cppgc/internal/logging.h',
@@ -220,7 +227,6 @@ def headers(options, action):
       'include/cppgc/cross-thread-persistent.h',
       'include/cppgc/custom-space.h',
       'include/cppgc/default-platform.h',
-      'include/cppgc/ephemeron-pair.h',
       'include/cppgc/explicit-management.h',
       'include/cppgc/garbage-collected.h',
       'include/cppgc/heap-consistency.h',
@@ -285,6 +291,7 @@ def headers(options, action):
       'include/v8-promise.h',
       'include/v8-proxy.h',
       'include/v8-regexp.h',
+      'include/v8-sandbox.h',
       'include/v8-script.h',
       'include/v8-snapshot.h',
       'include/v8-source-location.h',

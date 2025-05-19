@@ -7,7 +7,7 @@ if ((!common.hasCrypto) || (!common.hasIntl)) {
 
 common.skipIfEslintMissing();
 
-const RuleTester = require('../../tools/node_modules/eslint').RuleTester;
+const RuleTester = require('../../tools/eslint/node_modules/eslint').RuleTester;
 const rule = require('../../tools/eslint-rules/require-common-first');
 
 new RuleTester({
@@ -19,6 +19,12 @@ new RuleTester({
     {
       code: 'require("common")\n' +
             'require("assert")'
+    },
+    {
+      code: 'import "../../../../common/index.mjs";',
+      languageOptions: {
+        sourceType: 'module',
+      },
     },
   ],
   invalid: [
